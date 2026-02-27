@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import ReactPlayer from 'react-player';
 import { motion, AnimatePresence } from 'framer-motion';
+import LZString from 'lz-string';
 
 declare global {
   interface Window {
@@ -279,6 +280,9 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
+      // Wake up the server
+      fetch('/api/ping').catch(() => {});
+      
       const urlParams = new URLSearchParams(window.location.search);
       const s = urlParams.get('s');
       const t = urlParams.get('tmpl');
@@ -384,24 +388,52 @@ export default function App() {
     }
 
     setIsGeneratingLink(true);
-    try {
-      const response = await fetch('/api/rizz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
-        setShowLinkPopup(true);
-      } else {
-        const errorData = await response.json();
-        alert(`Failed to generate link: ${errorData.error || 'Server error'}.`);
+    
+    const tryGenerate = async (retries = 3): Promise<void> => {
+      try {
+        // 1. Heartbeat check to ensure server is awake
+        const ping = await fetch('/api/ping').catch(() => null);
+        if (!ping || !ping.ok) {
+          if (retries > 0) {
+            console.log(`Server not ready, retrying... (${retries} left)`);
+            await new Promise(r => setTimeout(r, 2000));
+            return tryGenerate(retries - 1);
+          }
+        }
+
+        // 2. Compress and Send
+        const jsonStr = JSON.stringify(payload);
+        const compressed = LZString.compressToEncodedURIComponent(jsonStr);
+        
+        const response = await fetch('/api/rizz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ compressed })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
+          setShowLinkPopup(true);
+        } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
+          throw new Error(errorData.error || `Server Error ${response.status}`);
+        }
+      } catch (error) {
+        if (retries > 0) {
+          console.log(`Generation failed, retrying... (${retries} left)`, error);
+          await new Promise(r => setTimeout(r, 2000));
+          return tryGenerate(retries - 1);
+        }
+        throw error;
       }
+    };
+
+    try {
+      await tryGenerate();
     } catch (error) {
-      console.error("Generation error", error);
-      alert('Network error. Please check your connection and try again.');
+      console.error("Final generation error:", error);
+      alert(`Network Error: Could not reach the server. This usually happens if the server is still starting or if the images are too large for your connection. Error: ${error.message}`);
     } finally {
       setIsGeneratingLink(false);
     }
@@ -430,30 +462,36 @@ export default function App() {
   // --- Scratch Logic ---
   useEffect(() => {
     if (tmpl === 'scratch' && scratchCanvasRef.current) {
-      const canvas = scratchCanvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      const initScratch = () => {
+        const canvas = scratchCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-      const rect = canvas.parentElement!.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      
-      // Set display size
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-      
-      // Set actual size in memory
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      
-      // Scale context to match DPR
-      ctx.scale(dpr, dpr);
+        const rect = canvas.parentElement!.getBoundingClientRect();
+        if (rect.width === 0) {
+          // If parent isn't ready, retry in a bit
+          setTimeout(initScratch, 100);
+          return;
+        }
 
-      ctx.fillStyle = '#C0C0C0';
-      ctx.fillRect(0, 0, rect.width, rect.height);
-      ctx.fillStyle = '#8e8e8e';
-      ctx.font = 'bold 20px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('SCRATCH HERE', rect.width / 2, rect.height / 2 + 7);
+        const dpr = window.devicePixelRatio || 1;
+        
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        ctx.fillStyle = '#C0C0C0';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        ctx.fillStyle = '#8e8e8e';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('SCRATCH HERE', rect.width / 2, rect.height / 2 + 7);
+      };
+
+      initScratch();
     }
   }, [tmpl]);
 
