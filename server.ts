@@ -10,40 +10,62 @@ const __dirname = path.dirname(__filename);
 // Use /tmp for writable storage on Vercel
 const DB_FILE = process.env.VERCEL ? path.join("/tmp", "rizz.json") : path.join(__dirname, "rizz.json");
 
-// Helper to read/write data
+// In-memory cache to handle Vercel's stateless nature during a single session
+const memoryStore: Record<string, any> = {};
+
 const getData = () => {
-  if (!fs.existsSync(DB_FILE)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
-  } catch (e) {
-    return {};
+  let data = { ...memoryStore };
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      const fileData = JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+      data = { ...fileData, ...data };
+    } catch (e) {
+      console.error("Read error", e);
+    }
   }
+  return data;
 };
 
 const saveData = (data: any) => {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data));
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data));
+  } catch (e) {
+    console.error("Write error", e);
+  }
 };
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+// Increase limit for base64 images to the max Vercel allows
+app.use(express.json({ limit: '4.5mb' })); 
+app.use(express.urlencoded({ limit: '4.5mb', extended: true }));
 
 const PORT = 3000;
 
 app.post("/api/rizz", (req, res) => {
-  const id = Math.random().toString(36).substring(2, 8);
-  const data = getData();
-  data[id] = req.body;
-  saveData(data);
-  res.json({ id });
+  try {
+    const id = Math.random().toString(36).substring(2, 8);
+    const data = getData();
+    data[id] = req.body;
+    memoryStore[id] = req.body;
+    saveData(data);
+    res.json({ id });
+  } catch (err) {
+    console.error("POST error", err);
+    res.status(500).json({ error: "Failed to generate" });
+  }
 });
 
 app.get("/api/rizz/:id", (req, res) => {
-  const data = getData();
-  const config = data[req.params.id];
-  if (config) {
-    res.json(config);
-  } else {
-    res.status(404).json({ error: "Not found" });
+  try {
+    const data = getData();
+    const config = data[req.params.id];
+    if (config) {
+      res.json(config);
+    } else {
+      res.status(404).json({ error: "Not found" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
 });
 
