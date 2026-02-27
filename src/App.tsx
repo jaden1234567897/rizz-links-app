@@ -369,6 +369,8 @@ export default function App() {
     }
   };
 
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+
   const generateLink = async () => {
     const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
     
@@ -381,7 +383,7 @@ export default function App() {
       return;
     }
 
-    setIsLoading(true);
+    setIsGeneratingLink(true);
     try {
       const response = await fetch('/api/rizz', {
         method: 'POST',
@@ -401,7 +403,7 @@ export default function App() {
       console.error("Generation error", error);
       alert('Network error. Please check your connection and try again.');
     } finally {
-      setIsLoading(false);
+      setIsGeneratingLink(false);
     }
   };
 
@@ -433,15 +435,25 @@ export default function App() {
       if (!ctx) return;
 
       const rect = canvas.parentElement!.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set display size
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      
+      // Set actual size in memory
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      
+      // Scale context to match DPR
+      ctx.scale(dpr, dpr);
 
       ctx.fillStyle = '#C0C0C0';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, rect.width, rect.height);
       ctx.fillStyle = '#8e8e8e';
       ctx.font = 'bold 20px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('SCRATCH HERE', canvas.width / 2, canvas.height / 2 + 7);
+      ctx.fillText('SCRATCH HERE', rect.width / 2, rect.height / 2 + 7);
     }
   }, [tmpl]);
 
@@ -1123,9 +1135,17 @@ export default function App() {
 
             <button 
               onClick={generateLink}
-              className="w-full bg-[#0071E3] hover:bg-[#0077ED] text-white font-bold py-5 rounded-2xl mt-8 transition-all active:scale-95 shadow-lg shadow-blue-200"
+              disabled={isGeneratingLink}
+              className={`w-full ${isGeneratingLink ? 'bg-slate-400' : 'bg-[#0071E3] hover:bg-[#0077ED]'} text-white font-bold py-5 rounded-2xl mt-8 transition-all active:scale-95 shadow-lg shadow-blue-200 flex items-center justify-center gap-2`}
             >
-              Generate Custom Link
+              {isGeneratingLink ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Generating...
+                </>
+              ) : (
+                'Generate Custom Link'
+              )}
             </button>
           </div>
         </div>
@@ -1145,23 +1165,40 @@ export default function App() {
                   "Hey, I'm testing a new app I built, can you check if this works on your phone?"
                 </p>
                 
-                <div className="w-full bg-[#2C2C2E] p-4 rounded-2xl flex items-center gap-3 mb-6 group">
-                  <div className="flex-1 overflow-x-auto no-scrollbar">
-                    <p className="text-[#64D2FF] font-mono text-[10px] whitespace-nowrap">{generatedLink}</p>
-                  </div>
+                <div className="flex flex-col gap-3 w-full">
+                  <button 
+                    onClick={async () => {
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: 'A Secret Proposal',
+                            text: 'I have something special to show you...',
+                            url: generatedLink,
+                          });
+                        } catch (err) {
+                          copyToClipboard();
+                        }
+                      } else {
+                        copyToClipboard();
+                      }
+                    }}
+                    className="w-full bg-[#0071E3] text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>📤</span> Share Link
+                  </button>
                   <button 
                     onClick={() => {
                       copyToClipboard();
                       const btn = document.getElementById('copy-indicator');
-                      if (btn) btn.innerText = 'Copied!';
+                      if (btn) btn.innerText = 'Copied to clipboard!';
                       setTimeout(() => { if (btn) btn.innerText = ''; }, 2000);
                     }}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors shrink-0"
+                    className="w-full bg-[#2C2C2E] text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
-                    <span className="text-xl">📋</span>
+                    <span>📋</span> Copy URL
                   </button>
                 </div>
-                <div id="copy-indicator" className="text-emerald-400 text-xs font-bold h-4 mb-4"></div>
+                <div id="copy-indicator" className="text-emerald-400 text-[10px] font-bold h-4 mt-2"></div>
 
                 <button 
                   onClick={() => setShowLinkPopup(false)}
@@ -1250,6 +1287,40 @@ export default function App() {
     }
   }
 
+  if (tmpl === 'scratch') {
+    return (
+      <div className="h-screen w-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-8 font-sans overflow-hidden">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center border border-slate-100 animate-in zoom-in duration-500 relative">
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">You have a surprise!</h2>
+          <p className="text-slate-500 mb-8 text-sm">Scratch the card below to reveal your prize from <span className="font-bold text-blue-500">{params.from}</span></p>
+          
+          <div className="relative w-full aspect-video bg-blue-50 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-blue-100">
+            <div className="text-center p-4">
+              <div className="text-4xl mb-2">🎁</div>
+              <div className="text-xl font-black text-blue-600 uppercase tracking-tighter">{params.prize}</div>
+              <div className="text-[10px] text-blue-400 font-bold mt-2 uppercase">Claimed by {params.to}</div>
+            </div>
+            
+            <canvas 
+              ref={scratchCanvasRef}
+              onMouseDown={() => setIsScratching(true)}
+              onMouseUp={() => setIsScratching(false)}
+              onMouseMove={handleScratch}
+              onTouchStart={(e) => { e.preventDefault(); setIsScratching(true); }}
+              onTouchEnd={() => setIsScratching(false)}
+              onTouchMove={handleScratch}
+              className="absolute inset-0 w-full h-full cursor-crosshair touch-none transition-opacity duration-500"
+            />
+          </div>
+
+          <div className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest animate-pulse">
+            Use your finger to scratch
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (tmpl === 'spotify') {
     const Player = ReactPlayer as any;
     // Ensure Spotify links are transformed to embed URLs if needed, 
@@ -1333,6 +1404,17 @@ export default function App() {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M7.58 16.89l5.77-4.07c.56-.4.56-1.24 0-1.63L7.58 7.11C6.91 6.65 6 7.12 6 7.93v8.14c0 .81.91 1.28 1.58.82zM16 7v10c0 .55.45 1 1 1s1-.45 1-1V7c0-.55-.45-1-1-1s-1 .45-1 1z"/></svg>
               </button>
             </div>
+            
+            {params.songUrl && (
+              <a 
+                href={params.songUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="mt-12 text-[10px] text-emerald-500 font-bold uppercase tracking-widest block text-center opacity-60 hover:opacity-100 transition-opacity"
+              >
+                Open in Spotify ↗
+              </a>
+            )}
           </div>
         </div>
       </div>
