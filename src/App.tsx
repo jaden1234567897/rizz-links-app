@@ -55,6 +55,7 @@ export default function App() {
   const [showLinkPopup, setShowLinkPopup] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -283,8 +284,8 @@ export default function App() {
       const t = urlParams.get('tmpl');
       const d = urlParams.get('d');
       
-      if (d) {
-        try {
+      try {
+        if (d) {
           // Robust Base64 decoding for Unicode
           const binary = atob(d);
           const bytes = new Uint8Array(binary.length);
@@ -295,30 +296,29 @@ export default function App() {
           const decoded = JSON.parse(decodedStr);
           setTmpl(decoded.tmpl);
           setParams(decoded);
-        } catch (e) {
-          console.error("Failed to decode Magic URL", e);
-        }
-      } else if (s) {
-        try {
+        } else if (s) {
           const response = await fetch(`/api/rizz/${s}`);
           if (response.ok) {
             const data = await response.json();
             setTmpl(data.tmpl);
             setParams(data);
+          } else {
+            setLoadError("This proposal has expired or doesn't exist.");
           }
-        } catch (error) {
-          console.error('Failed to fetch rizz config');
+        } else if (t) {
+          setTmpl(t);
+          setParams({
+            to: urlParams.get('to') || 'Someone Special',
+            from: urlParams.get('from') || 'Your Secret Admirer',
+            plan: urlParams.get('plan') || 'a surprise',
+            prize: urlParams.get('prize') || 'a fun night',
+            time: urlParams.get('time') || 'Tonight',
+            img: urlParams.get('img') || 'https://picsum.photos/400'
+          });
         }
-      } else if (t) {
-        setTmpl(t);
-        setParams({
-          to: urlParams.get('to') || 'Someone Special',
-          from: urlParams.get('from') || 'Your Secret Admirer',
-          plan: urlParams.get('plan') || 'a surprise',
-          prize: urlParams.get('prize') || 'a fun night',
-          time: urlParams.get('time') || 'Tonight',
-          img: urlParams.get('img') || 'https://picsum.photos/400'
-        });
+      } catch (e) {
+        console.error("Failed to load proposal", e);
+        setLoadError("Failed to open this proposal. It might be broken.");
       }
       setIsLoading(false);
     };
@@ -371,45 +371,39 @@ export default function App() {
   const generateLink = async () => {
     const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
     
-    // Create the data object
     const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText };
     
     try {
-      // Encode the data into a "Magic URL" (Base64) with Unicode support
-      const jsonStr = JSON.stringify(payload);
-      const bytes = new TextEncoder().encode(jsonStr);
-      let binary = "";
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const encodedData = btoa(binary);
+      // 1. Always try to save to server first for reliability
+      const response = await fetch('/api/rizz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       
-      // If the URL is too long (usually due to images), we'll have to rely on the server
-      const isTooLong = encodedData.length > 8000;
-      let url = `${window.location.origin}/?d=${encodedData}`;
-      
-      // We still try to ping the API for analytics/backup
-      try {
-        const response = await fetch('/api/rizz', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // If the Magic URL is too long, we use the short ID instead
-          if (isTooLong) {
-            url = `${window.location.origin}/?s=${data.id}`;
-          }
+      if (response.ok) {
+        const data = await response.json();
+        setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
+      } else {
+        // 2. Fallback to Magic URL if server fails
+        const jsonStr = JSON.stringify(payload);
+        const bytes = new TextEncoder().encode(jsonStr);
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
         }
-      } catch (e) {
-        console.warn("Server backup failed, using Magic URL", e);
+        const encodedData = btoa(binary);
+        
+        if (encodedData.length > 8000) {
+          alert("This proposal is too 'heavy' (large images) for a direct link. Please try smaller photos or no photos!");
+          return;
+        }
+        setGeneratedLink(`${window.location.origin}/?d=${encodedData}`);
       }
 
-      setGeneratedLink(url);
       setShowLinkPopup(true);
     } catch (error) {
-      console.error("Encoding error", error);
+      console.error("Generation error", error);
       alert('Failed to generate link. Please try again.');
     }
   };
@@ -548,6 +542,38 @@ export default function App() {
       setSuccess({ title: "Delivered!", msg: "See you then! 🚚💨" });
     }, 1000);
   };
+
+  if (loadError) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F5F5F7] p-8 text-center">
+        <div className="text-6xl mb-6">💔</div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Oops!</h2>
+        <p className="text-slate-500 mb-8">{loadError}</p>
+        <button 
+          onClick={() => window.location.href = window.location.origin}
+          className="bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg"
+        >
+          Go to Home
+        </button>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F5F5F7] p-8 text-center">
+        <div className="text-6xl mb-6">💔</div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Oops!</h2>
+        <p className="text-slate-500 mb-8">{loadError}</p>
+        <button 
+          onClick={() => window.location.href = window.location.origin}
+          className="bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg"
+        >
+          Go to Home
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
