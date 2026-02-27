@@ -54,6 +54,7 @@ export default function App() {
   const [generatedLink, setGeneratedLink] = useState('');
   const [showLinkPopup, setShowLinkPopup] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkKey = async () => {
@@ -284,7 +285,13 @@ export default function App() {
       
       if (d) {
         try {
-          const decodedStr = decodeURIComponent(atob(d).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+          // Robust Base64 decoding for Unicode
+          const binary = atob(d);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const decodedStr = new TextDecoder().decode(bytes);
           const decoded = JSON.parse(decodedStr);
           setTmpl(decoded.tmpl);
           setParams(decoded);
@@ -313,12 +320,13 @@ export default function App() {
           img: urlParams.get('img') || 'https://picsum.photos/400'
         });
       }
+      setIsLoading(false);
     };
     init();
   }, []);
 
   // --- Dashboard Actions ---
-  const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
@@ -343,7 +351,7 @@ export default function App() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6)); // Compress to 60% quality
+        resolve(canvas.toDataURL('image/jpeg', 0.5)); // Compress to 50% quality for smaller URLs
       };
     });
   };
@@ -369,10 +377,14 @@ export default function App() {
     try {
       // Encode the data into a "Magic URL" (Base64) with Unicode support
       const jsonStr = JSON.stringify(payload);
-      const encodedData = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+      const bytes = new TextEncoder().encode(jsonStr);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const encodedData = btoa(binary);
       
       // If the URL is too long (usually due to images), we'll have to rely on the server
-      // Browsers generally support up to 8k-32k, but let's be safe with 8k for the data part
       const isTooLong = encodedData.length > 8000;
       let url = `${window.location.origin}/?d=${encodedData}`;
       
@@ -536,6 +548,17 @@ export default function App() {
       setSuccess({ title: "Delivered!", msg: "See you then! 🚚💨" });
     }, 1000);
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium">Opening your secret...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -1113,8 +1136,8 @@ export default function App() {
                 </p>
                 
                 <div className="w-full bg-[#2C2C2E] p-4 rounded-2xl flex items-center gap-3 mb-6 group">
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-[#64D2FF] font-mono text-xs truncate">{generatedLink}</p>
+                  <div className="flex-1 overflow-x-auto no-scrollbar">
+                    <p className="text-[#64D2FF] font-mono text-[10px] whitespace-nowrap">{generatedLink}</p>
                   </div>
                   <button 
                     onClick={() => {
@@ -1123,7 +1146,7 @@ export default function App() {
                       if (btn) btn.innerText = 'Copied!';
                       setTimeout(() => { if (btn) btn.innerText = ''; }, 2000);
                     }}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors shrink-0"
                   >
                     <span className="text-xl">📋</span>
                   </button>
