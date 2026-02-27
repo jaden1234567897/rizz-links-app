@@ -274,8 +274,17 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const s = urlParams.get('s');
       const t = urlParams.get('tmpl');
+      const d = urlParams.get('d');
       
-      if (s) {
+      if (d) {
+        try {
+          const decoded = JSON.parse(atob(d));
+          setTmpl(decoded.tmpl);
+          setParams(decoded);
+        } catch (e) {
+          console.error("Failed to decode Magic URL", e);
+        }
+      } else if (s) {
         try {
           const response = await fetch(`/api/rizz/${s}`);
           if (response.ok) {
@@ -346,14 +355,22 @@ export default function App() {
 
   const generateLink = async () => {
     const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
+    
+    // Create the data object
+    const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText };
+    
     try {
-      const response = await fetch('/api/rizz', {
+      // Encode the data into a "Magic URL" (Base64)
+      const encodedData = btoa(JSON.stringify(payload));
+      const url = `${window.location.origin}/?d=${encodedData}`;
+      
+      // We still try to ping the API for analytics/backup, but we use the Magic URL for sharing
+      fetch('/api/rizz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText })
-      });
-      const data = await response.json();
-      const url = `${window.location.origin}/?s=${data.id}`;
+        body: JSON.stringify(payload)
+      }).catch(() => {}); // Ignore API failures, the Magic URL is our primary link now
+
       setGeneratedLink(url);
       setShowLinkPopup(true);
     } catch (error) {
