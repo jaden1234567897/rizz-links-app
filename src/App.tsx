@@ -326,7 +326,7 @@ export default function App() {
   }, []);
 
   // --- Dashboard Actions ---
-  const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
@@ -351,8 +351,8 @@ export default function App() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        // Use a balanced quality to keep size under 1MB but maintain visibility
-        resolve(canvas.toDataURL('image/jpeg', 0.4)); 
+        // Aggressive compression to stay under Vercel's 4.5MB limit
+        resolve(canvas.toDataURL('image/jpeg', 0.5)); 
       };
     });
   };
@@ -374,48 +374,34 @@ export default function App() {
     
     const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText };
     
+    // Check payload size (Vercel limit is 4.5MB)
+    const size = new Blob([JSON.stringify(payload)]).size;
+    if (size > 4 * 1024 * 1024) {
+      alert("This proposal is too 'heavy' (images are too large). Please try using smaller photos!");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      // 1. Always try to save to server first for reliability
       const response = await fetch('/api/rizz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       
-      let url = "";
       if (response.ok) {
         const data = await response.json();
-        url = `${window.location.origin}/?s=${data.id}`;
+        setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
+        setShowLinkPopup(true);
       } else {
-        // 2. Fallback to Magic URL if server fails (e.g. payload too large for Vercel)
-        const jsonStr = JSON.stringify(payload);
-        const bytes = new TextEncoder().encode(jsonStr);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const encodedData = btoa(binary);
-        url = `${window.location.origin}/?d=${encodedData}`;
+        const errorData = await response.json();
+        alert(`Failed to generate link: ${errorData.error || 'Server error'}.`);
       }
-
-      setGeneratedLink(url);
-      setShowLinkPopup(true);
     } catch (error) {
       console.error("Generation error", error);
-      // Final fallback to Magic URL even on network error
-      try {
-        const jsonStr = JSON.stringify(payload);
-        const bytes = new TextEncoder().encode(jsonStr);
-        let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const encodedData = btoa(binary);
-        setGeneratedLink(`${window.location.origin}/?d=${encodedData}`);
-        setShowLinkPopup(true);
-      } catch (e) {
-        alert('Failed to generate link. Please try again.');
-      }
+      alert('Network error. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -556,31 +542,18 @@ export default function App() {
 
   if (loadError) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F5F5F7] p-8 text-center">
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F5F5F7] p-8 text-center font-sans">
         <div className="text-6xl mb-6">💔</div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Oops!</h2>
-        <p className="text-slate-500 mb-8">{loadError}</p>
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Proposal Not Found</h2>
+        <p className="text-slate-500 mb-8 leading-relaxed">
+          This link might have expired or is broken. <br/>
+          Ask your person to send a new one!
+        </p>
         <button 
           onClick={() => window.location.href = window.location.origin}
-          className="bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg"
+          className="bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform"
         >
-          Go to Home
-        </button>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F5F5F7] p-8 text-center">
-        <div className="text-6xl mb-6">💔</div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Oops!</h2>
-        <p className="text-slate-500 mb-8">{loadError}</p>
-        <button 
-          onClick={() => window.location.href = window.location.origin}
-          className="bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold shadow-lg"
-        >
-          Go to Home
+          Create Your Own
         </button>
       </div>
     );
@@ -1283,10 +1256,12 @@ export default function App() {
     // though ReactPlayer usually handles standard URLs.
     const getEmbedUrl = (url: string) => {
       if (!url) return "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-      // Basic cleanup for Spotify links if needed
+      
+      // Handle Spotify links specifically for ReactPlayer
       if (url.includes('spotify.com')) {
         // ReactPlayer handles standard spotify.com/track/ URLs
-        return url;
+        // but we ensure it's clean
+        return url.split('?')[0];
       }
       return url;
     };
