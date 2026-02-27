@@ -1,21 +1,28 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbPath = process.env.VERCEL ? path.join("/tmp", "rizz.db") : "rizz.db";
-const db = new Database(dbPath);
-db.exec(`
-  CREATE TABLE IF NOT EXISTS rizz_links (
-    id TEXT PRIMARY KEY,
-    config TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+// Use /tmp for writable storage on Vercel
+const DB_FILE = process.env.VERCEL ? path.join("/tmp", "rizz.json") : path.join(__dirname, "rizz.json");
+
+// Helper to read/write data
+const getData = () => {
+  if (!fs.existsSync(DB_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, "utf-8"));
+  } catch (e) {
+    return {};
+  }
+};
+
+const saveData = (data: any) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data));
+};
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -24,19 +31,17 @@ const PORT = 3000;
 
 app.post("/api/rizz", (req, res) => {
   const id = Math.random().toString(36).substring(2, 8);
-  const config = JSON.stringify(req.body);
-  try {
-    db.prepare("INSERT INTO rizz_links (id, config) VALUES (?, ?)").run(id, config);
-    res.json({ id });
-  } catch (e) {
-    res.status(500).json({ error: "Failed to save link" });
-  }
+  const data = getData();
+  data[id] = req.body;
+  saveData(data);
+  res.json({ id });
 });
 
 app.get("/api/rizz/:id", (req, res) => {
-  const row = db.prepare("SELECT config FROM rizz_links WHERE id = ?").get(req.params.id) as { config: string } | undefined;
-  if (row) {
-    res.json(JSON.parse(row.config));
+  const data = getData();
+  const config = data[req.params.id];
+  if (config) {
+    res.json(config);
   } else {
     res.status(404).json({ error: "Not found" });
   }
