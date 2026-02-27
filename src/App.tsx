@@ -39,6 +39,12 @@ export default function App() {
     quizQ1: 'What is the superior weekend activity?',
     quizQ2: 'How would you describe your ideal date?',
     quizQ3: 'What is your biggest red flag?',
+    quizA1_1: '',
+    quizA1_2: 'Staring at a wall',
+    quizA2_1: '',
+    quizA2_2: 'Doing taxes',
+    quizA3_1: 'Not saying yes to this date',
+    quizA3_2: 'Being too perfect',
     customMsg: 'Will you go out with me?',
     customBtn: 'Yes!',
     customNoBtn: 'No!',
@@ -312,7 +318,7 @@ export default function App() {
   }, []);
 
   // --- Dashboard Actions ---
-  const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
@@ -337,7 +343,7 @@ export default function App() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compress to 70% quality
+        resolve(canvas.toDataURL('image/jpeg', 0.6)); // Compress to 60% quality
       };
     });
   };
@@ -355,10 +361,10 @@ export default function App() {
   };
 
   const generateLink = async () => {
-    const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
+    const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
     
     // Create the data object
-    const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText };
+    const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText };
     
     try {
       // Encode the data into a "Magic URL" (Base64) with Unicode support
@@ -383,15 +389,9 @@ export default function App() {
           if (isTooLong) {
             url = `${window.location.origin}/?s=${data.id}`;
           }
-        } else if (isTooLong) {
-          throw new Error("Payload too large for Magic URL and server failed");
         }
       } catch (e) {
         console.warn("Server backup failed, using Magic URL", e);
-        if (isTooLong) {
-          alert("This proposal is too 'heavy' (large images). Try using smaller photos or no photos so it works without a database!");
-          return;
-        }
       }
 
       setGeneratedLink(url);
@@ -722,11 +722,11 @@ export default function App() {
               {dashboardData.type === 'spotify' && (
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Song URL (MP3)</label>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Song URL (Spotify, YouTube, etc.)</label>
                     <input 
                       type="text" 
                       className="w-full bg-[#F5F5F7] border-none rounded-2xl p-4 text-[#1D1D1F] font-semibold outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g. https://example.com/song.mp3"
+                      placeholder="e.g. https://spotify.com/... or https://youtube.com/..."
                       value={dashboardData.songUrl}
                       onChange={(e) => setDashboardData({ ...dashboardData, songUrl: e.target.value })}
                     />
@@ -959,6 +959,22 @@ export default function App() {
                       value={dashboardData.quizQ1}
                       onChange={(e) => setDashboardData({ ...dashboardData, quizQ1: e.target.value })}
                     />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 1 (Correct)"
+                        value={dashboardData.quizA1_1}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA1_1: e.target.value })}
+                      />
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 2 (Funny)"
+                        value={dashboardData.quizA1_2}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA1_2: e.target.value })}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Custom Question 2</label>
@@ -969,6 +985,22 @@ export default function App() {
                       value={dashboardData.quizQ2}
                       onChange={(e) => setDashboardData({ ...dashboardData, quizQ2: e.target.value })}
                     />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 1 (Correct)"
+                        value={dashboardData.quizA2_1}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA2_1: e.target.value })}
+                      />
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 2 (Funny)"
+                        value={dashboardData.quizA2_2}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA2_2: e.target.value })}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Custom Question 3</label>
@@ -979,6 +1011,22 @@ export default function App() {
                       value={dashboardData.quizQ3}
                       onChange={(e) => setDashboardData({ ...dashboardData, quizQ3: e.target.value })}
                     />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 1 (Correct)"
+                        value={dashboardData.quizA3_1}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA3_1: e.target.value })}
+                      />
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#F5F5F7] border-none rounded-xl p-3 text-xs font-semibold outline-none"
+                        placeholder="Answer 2 (Funny)"
+                        value={dashboardData.quizA3_2}
+                        onChange={(e) => setDashboardData({ ...dashboardData, quizA3_2: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1701,22 +1749,22 @@ export default function App() {
       {
         q: params.quizQ1 || "What is the superior weekend activity?",
         options: [
-          `Going to ${params.quizFood || 'your favorite spot'}`,
-          "Staring at a wall"
+          params.quizA1_1 || `Going to ${params.quizFood || 'your favorite spot'}`,
+          params.quizA1_2 || "Staring at a wall"
         ]
       },
       {
         q: params.quizQ2 || "How would you describe your ideal date?",
         options: [
-          `Anything with ${params.from}`,
-          "Doing taxes"
+          params.quizA2_1 || `Anything with ${params.from}`,
+          params.quizA2_2 || "Doing taxes"
         ]
       },
       {
         q: params.quizQ3 || "What is your biggest red flag?",
         options: [
-          "Not saying yes to this date",
-          "Being too perfect"
+          params.quizA3_1 || "Not saying yes to this date",
+          params.quizA3_2 || "Being too perfect"
         ]
       }
     ];
