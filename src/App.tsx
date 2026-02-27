@@ -278,7 +278,8 @@ export default function App() {
       
       if (d) {
         try {
-          const decoded = JSON.parse(atob(d));
+          const decodedStr = decodeURIComponent(atob(d).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+          const decoded = JSON.parse(decodedStr);
           setTmpl(decoded.tmpl);
           setParams(decoded);
         } catch (e) {
@@ -360,20 +361,43 @@ export default function App() {
     const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, customMsg, customBtn, customNoBtn, customBg, customText };
     
     try {
-      // Encode the data into a "Magic URL" (Base64)
-      const encodedData = btoa(JSON.stringify(payload));
-      const url = `${window.location.origin}/?d=${encodedData}`;
+      // Encode the data into a "Magic URL" (Base64) with Unicode support
+      const jsonStr = JSON.stringify(payload);
+      const encodedData = btoa(encodeURIComponent(jsonStr).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
       
-      // We still try to ping the API for analytics/backup, but we use the Magic URL for sharing
-      fetch('/api/rizz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {}); // Ignore API failures, the Magic URL is our primary link now
+      // If the URL is too long (usually due to images), we'll have to rely on the server
+      // Browsers generally support up to 8k-32k, but let's be safe with 8k for the data part
+      const isTooLong = encodedData.length > 8000;
+      let url = `${window.location.origin}/?d=${encodedData}`;
+      
+      // We still try to ping the API for analytics/backup
+      try {
+        const response = await fetch('/api/rizz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // If the Magic URL is too long, we use the short ID instead
+          if (isTooLong) {
+            url = `${window.location.origin}/?s=${data.id}`;
+          }
+        } else if (isTooLong) {
+          throw new Error("Payload too large for Magic URL and server failed");
+        }
+      } catch (e) {
+        console.warn("Server backup failed, using Magic URL", e);
+        if (isTooLong) {
+          alert("This proposal is too 'heavy' (large images). Try using smaller photos or no photos so it works without a database!");
+          return;
+        }
+      }
 
       setGeneratedLink(url);
       setShowLinkPopup(true);
     } catch (error) {
+      console.error("Encoding error", error);
       alert('Failed to generate link. Please try again.');
     }
   };
