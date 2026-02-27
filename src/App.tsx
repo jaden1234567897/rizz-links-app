@@ -326,7 +326,7 @@ export default function App() {
   }, []);
 
   // --- Dashboard Actions ---
-  const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 800, maxHeight = 800): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
@@ -351,7 +351,8 @@ export default function App() {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.5)); // Compress to 50% quality for smaller URLs
+        // Use a balanced quality to keep size under 1MB but maintain visibility
+        resolve(canvas.toDataURL('image/jpeg', 0.4)); 
       };
     });
   };
@@ -381,11 +382,12 @@ export default function App() {
         body: JSON.stringify(payload)
       });
       
+      let url = "";
       if (response.ok) {
         const data = await response.json();
-        setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
+        url = `${window.location.origin}/?s=${data.id}`;
       } else {
-        // 2. Fallback to Magic URL if server fails
+        // 2. Fallback to Magic URL if server fails (e.g. payload too large for Vercel)
         const jsonStr = JSON.stringify(payload);
         const bytes = new TextEncoder().encode(jsonStr);
         let binary = "";
@@ -393,18 +395,27 @@ export default function App() {
           binary += String.fromCharCode(bytes[i]);
         }
         const encodedData = btoa(binary);
-        
-        if (encodedData.length > 8000) {
-          alert("This proposal is too 'heavy' (large images) for a direct link. Please try smaller photos or no photos!");
-          return;
-        }
-        setGeneratedLink(`${window.location.origin}/?d=${encodedData}`);
+        url = `${window.location.origin}/?d=${encodedData}`;
       }
 
+      setGeneratedLink(url);
       setShowLinkPopup(true);
     } catch (error) {
       console.error("Generation error", error);
-      alert('Failed to generate link. Please try again.');
+      // Final fallback to Magic URL even on network error
+      try {
+        const jsonStr = JSON.stringify(payload);
+        const bytes = new TextEncoder().encode(jsonStr);
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const encodedData = btoa(binary);
+        setGeneratedLink(`${window.location.origin}/?d=${encodedData}`);
+        setShowLinkPopup(true);
+      } catch (e) {
+        alert('Failed to generate link. Please try again.');
+      }
     }
   };
 
@@ -1268,16 +1279,32 @@ export default function App() {
 
   if (tmpl === 'spotify') {
     const Player = ReactPlayer as any;
+    // Ensure Spotify links are transformed to embed URLs if needed, 
+    // though ReactPlayer usually handles standard URLs.
+    const getEmbedUrl = (url: string) => {
+      if (!url) return "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+      // Basic cleanup for Spotify links if needed
+      if (url.includes('spotify.com')) {
+        // ReactPlayer handles standard spotify.com/track/ URLs
+        return url;
+      }
+      return url;
+    };
+
     return (
       <div className="h-screen w-screen bg-[#121212] text-white flex flex-col font-sans overflow-hidden">
         <div className="hidden">
           <Player 
-            url={params.songUrl || "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}
+            url={getEmbedUrl(params.songUrl)}
             playing={spotifyPlaying}
             loop
             volume={0.8}
             onProgress={(state: any) => {
               if (spotifyPlaying) setSpotifyProgress(state.played * 100);
+            }}
+            config={{
+              youtube: { playerVars: { autoplay: 1 } },
+              spotify: { playerVars: { autoplay: 1 } }
             }}
           />
         </div>
