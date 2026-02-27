@@ -7,7 +7,8 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("rizz.db");
+const dbPath = process.env.VERCEL ? path.join("/tmp", "rizz.db") : "rizz.db";
+const db = new Database(dbPath);
 db.exec(`
   CREATE TABLE IF NOT EXISTS rizz_links (
     id TEXT PRIMARY KEY,
