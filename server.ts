@@ -7,8 +7,8 @@ import LZString from "lz-string";
 // Robust directory selection: try /tmp first as it's always writable in these environments
 const getDbDir = () => {
   const paths = [
-    "/tmp/rizz_db",
-    path.join(process.cwd(), "rizz_db")
+    "/tmp/proposal_db",
+    path.join(process.cwd(), "proposal_db")
   ];
   
   for (const p of paths) {
@@ -44,7 +44,7 @@ async function initDb() {
     // Set a timeout for the initial connection/table creation
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("Postgres init timeout")), 5000));
     const init = sql`
-      CREATE TABLE IF NOT EXISTS rizz_links (
+      CREATE TABLE IF NOT EXISTS proposals (
         id TEXT PRIMARY KEY,
         data JSONB NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -64,7 +64,7 @@ const getData = async (id: string) => {
   // 2. Check Postgres
   if (usePostgres) {
     try {
-      const { rows } = await sql`SELECT data FROM rizz_links WHERE id = ${id}`;
+      const { rows } = await sql`SELECT data FROM proposals WHERE id = ${id}`;
       if (rows.length > 0) {
         const data = rows[0].data;
         memoryStore.set(id, data);
@@ -104,7 +104,7 @@ const saveData = async (id: string, data: any) => {
   // 3. Save to Postgres (Async, don't block the response)
   if (usePostgres) {
     sql`
-      INSERT INTO rizz_links (id, data) 
+      INSERT INTO proposals (id, data) 
       VALUES (${id}, ${JSON.stringify(data)})
       ON CONFLICT (id) DO UPDATE SET data = ${JSON.stringify(data)}
     `.catch(e => console.error("Postgres async write error", e.message));
@@ -129,9 +129,32 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const PORT = 3000;
 
-app.post("/api/rizz", async (req, res) => {
+app.post("/api/login", (req, res) => {
+  const { password } = req.body;
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  if (password === adminPassword) {
+    const token = Buffer.from(`admin:${adminPassword}`).toString('base64');
+    res.json({ token });
+  } else {
+    res.status(401).json({ error: "Invalid password" });
+  }
+});
+
+const requireAuth = (req: any, res: any, next: any) => {
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const expectedToken = Buffer.from(`admin:${adminPassword}`).toString('base64');
+  const authHeader = req.headers.authorization;
+
+  if (authHeader === `Bearer ${expectedToken}`) {
+    next();
+  } else {
+    res.status(401).json({ error: "Unauthorized" });
+  }
+};
+
+app.post("/api/proposal", requireAuth, async (req, res) => {
   const requestId = Math.random().toString(36).substring(2, 8);
-  console.log(`[${requestId}] POST /api/rizz started`);
+  console.log(`[${requestId}] POST /api/proposal started`);
   
   try {
     let data = req.body;
@@ -171,7 +194,7 @@ app.get("/api/ping", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
 
-app.get("/api/rizz/:id", async (req, res) => {
+app.get("/api/proposal/:id", async (req, res) => {
   try {
     const config = await getData(req.params.id);
     if (config) {

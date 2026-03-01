@@ -8,6 +8,7 @@ import confetti from 'canvas-confetti';
 import ReactPlayer from 'react-player';
 import { motion, AnimatePresence } from 'framer-motion';
 import LZString from 'lz-string';
+import { Lock } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -19,6 +20,9 @@ declare global {
 }
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [tmpl, setTmpl] = useState<string | null>(null);
   const [params, setParams] = useState<any>({});
   const [dashboardData, setDashboardData] = useState({
@@ -67,6 +71,28 @@ export default function App() {
     };
     checkKey();
   }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const baseUrl = window.location.origin;
+      const res = await fetch(`${baseUrl}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        const { token } = await res.json();
+        localStorage.setItem('adminToken', token);
+        setIsAuthenticated(true);
+        setLoginError('');
+      } else {
+        setLoginError('Invalid password');
+      }
+    } catch (err) {
+      setLoginError('Login failed. Check connection.');
+    }
+  };
 
   const handleSetupKey = async () => {
     if (window.aistudio?.openSelectKey) {
@@ -280,6 +306,9 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
+      const token = localStorage.getItem('adminToken');
+      if (token) setIsAuthenticated(true);
+
       // Wake up the server
       const baseUrl = window.location.origin;
       fetch(`${baseUrl}/api/ping`).catch(() => {});
@@ -303,7 +332,7 @@ export default function App() {
           setParams(decoded);
         } else if (s) {
           const baseUrl = window.location.origin;
-          const response = await fetch(`${baseUrl}/api/rizz/${s}`);
+          const response = await fetch(`${baseUrl}/api/proposal/${s}`);
           if (response.ok) {
             const data = await response.json();
             setTmpl(data.tmpl);
@@ -408,9 +437,13 @@ export default function App() {
         const jsonStr = JSON.stringify(payload);
         const compressed = LZString.compressToEncodedURIComponent(jsonStr);
         
-        const response = await fetch(`${baseUrl}/api/rizz`, {
+        const token = localStorage.getItem('adminToken');
+        const response = await fetch(`${baseUrl}/api/proposal`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({ compressed })
         });
         
@@ -653,6 +686,43 @@ export default function App() {
   }
 
   if (!tmpl) {
+    if (!isAuthenticated) {
+      return (
+        <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-4 font-sans">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white p-8 rounded-[2.5rem] shadow-xl max-w-md w-full text-center border border-slate-200/50"
+          >
+            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Lock className="w-8 h-8 text-blue-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">Admin Access</h1>
+            <p className="text-slate-500 mb-8 font-medium">Please enter the password to access the dashboard.</p>
+            
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full px-5 py-4 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium text-slate-700 placeholder-slate-400"
+                />
+              </div>
+              {loginError && <p className="text-red-500 text-sm font-medium">{loginError}</p>}
+              <button
+                type="submit"
+                className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-bold transition-colors shadow-sm shadow-blue-500/20"
+              >
+                Login
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] p-4 flex flex-col items-center font-sans">
         <div className="max-w-md w-full mt-12">
