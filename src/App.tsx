@@ -686,6 +686,16 @@ export default function App() {
   }
 
   if (!tmpl) {
+    if (window.location.pathname !== '/admin') {
+      return (
+        <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-4 font-sans">
+          <div className="text-6xl mb-6">👻</div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Nothing to see here</h2>
+          <p className="text-slate-500">This page doesn't exist.</p>
+        </div>
+      );
+    }
+
     if (!isAuthenticated) {
       return (
         <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-4 font-sans">
@@ -726,9 +736,20 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F] p-4 flex flex-col items-center font-sans">
         <div className="max-w-md w-full mt-12">
+          <div className="flex justify-end mb-4">
+            <button 
+              onClick={() => {
+                localStorage.removeItem('adminToken');
+                setIsAuthenticated(false);
+              }}
+              className="text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
           <div className="text-center mb-10">
             <h1 className="text-4xl font-bold tracking-tight mb-2">
-              RizzLinks
+              SecretLinks
             </h1>
             <p className="text-slate-500 text-lg font-medium">Create a date proposal they literally can't say no to.</p>
           </div>
