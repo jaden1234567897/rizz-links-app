@@ -449,7 +449,20 @@ export default function App() {
         
         if (response.ok) {
           const data = await response.json();
-          setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
+          const longUrl = `${window.location.origin}/?s=${data.id}`;
+          
+          try {
+            const tinyRes = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+            if (tinyRes.ok) {
+              const shortUrl = await tinyRes.text();
+              setGeneratedLink(shortUrl);
+            } else {
+              setGeneratedLink(longUrl);
+            }
+          } catch (e) {
+            setGeneratedLink(longUrl);
+          }
+          
           setShowLinkPopup(true);
         } else {
           let errorMessage = `Server Error ${response.status}`;
