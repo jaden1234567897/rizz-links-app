@@ -1,19 +1,13 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import fs from "fs";
 import { sql } from "@vercel/postgres";
 import LZString from "lz-string";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Robust directory selection: try /tmp first as it's always writable in these environments
 const getDbDir = () => {
   const paths = [
     "/tmp/rizz_db",
-    path.join(__dirname, "rizz_db"),
     path.join(process.cwd(), "rizz_db")
   ];
   
@@ -190,14 +184,15 @@ app.get("/api/rizz/:id", async (req, res) => {
   }
 });
 
+// Start DB init in background immediately for serverless
+initDb().catch(e => console.error("Background DB init error:", e.message));
+
 async function startServer() {
   console.log("Starting server initialization...");
   
-  // Start DB init in background
-  initDb().catch(e => console.error("Background DB init error:", e.message));
-
   if (process.env.NODE_ENV !== "production") {
     console.log("Running in development mode with Vite middleware");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -205,7 +200,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("Running in production mode");
-    const distPath = path.join(__dirname, "dist");
+    const distPath = path.join(process.cwd(), "dist");
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
       app.get("*", (req, res) => {
@@ -216,12 +211,16 @@ async function startServer() {
     }
   }
 
-  // ALWAYS listen on PORT 3000 in this environment
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`>>> Server is officially listening on port ${PORT} <<<`);
-  });
+  // ALWAYS listen on PORT 3000 in this environment, EXCEPT on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`>>> Server is officially listening on port ${PORT} <<<`);
+    });
+  }
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
 export default app;

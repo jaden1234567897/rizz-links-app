@@ -281,7 +281,8 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       // Wake up the server
-      fetch('/api/ping').catch(() => {});
+      const baseUrl = window.location.origin;
+      fetch(`${baseUrl}/api/ping`).catch(() => {});
       
       const urlParams = new URLSearchParams(window.location.search);
       const s = urlParams.get('s');
@@ -301,7 +302,8 @@ export default function App() {
           setTmpl(decoded.tmpl);
           setParams(decoded);
         } else if (s) {
-          const response = await fetch(`/api/rizz/${s}`);
+          const baseUrl = window.location.origin;
+          const response = await fetch(`${baseUrl}/api/rizz/${s}`);
           if (response.ok) {
             const data = await response.json();
             setTmpl(data.tmpl);
@@ -330,7 +332,7 @@ export default function App() {
   }, []);
 
   // --- Dashboard Actions ---
-  const compressImage = (base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> => {
+  const compressImage = (base64Str: string, maxWidth = 400, maxHeight = 400): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
       img.src = base64Str;
@@ -356,7 +358,7 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         // Aggressive compression to stay under Vercel's 4.5MB limit
-        resolve(canvas.toDataURL('image/jpeg', 0.5)); 
+        resolve(canvas.toDataURL('image/jpeg', 0.4)); 
       };
     });
   };
@@ -392,7 +394,8 @@ export default function App() {
     const tryGenerate = async (retries = 3): Promise<void> => {
       try {
         // 1. Heartbeat check to ensure server is awake
-        const ping = await fetch('/api/ping').catch(() => null);
+        const baseUrl = window.location.origin;
+        const ping = await fetch(`${baseUrl}/api/ping`).catch(() => null);
         if (!ping || !ping.ok) {
           if (retries > 0) {
             console.log(`Server not ready, retrying... (${retries} left)`);
@@ -405,7 +408,7 @@ export default function App() {
         const jsonStr = JSON.stringify(payload);
         const compressed = LZString.compressToEncodedURIComponent(jsonStr);
         
-        const response = await fetch('/api/rizz', {
+        const response = await fetch(`${baseUrl}/api/rizz`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ compressed })
@@ -416,8 +419,18 @@ export default function App() {
           setGeneratedLink(`${window.location.origin}/?s=${data.id}`);
           setShowLinkPopup(true);
         } else {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }));
-          throw new Error(errorData.error || `Server Error ${response.status}`);
+          let errorMessage = `Server Error ${response.status}`;
+          try {
+            const errorData = await response.json();
+            if (errorData.error) errorMessage = errorData.error;
+          } catch (e) {
+            if (response.status === 413) {
+              errorMessage = "Payload Too Large. Please use smaller images.";
+            } else {
+              errorMessage = `Unknown server error (${response.status})`;
+            }
+          }
+          throw new Error(errorMessage);
         }
       } catch (error) {
         if (retries > 0) {
