@@ -686,16 +686,6 @@ export default function App() {
   }
 
   if (!tmpl) {
-    if (window.location.pathname !== '/admin') {
-      return (
-        <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-4 font-sans">
-          <div className="text-6xl mb-6">👻</div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Nothing to see here</h2>
-          <p className="text-slate-500">This page doesn't exist.</p>
-        </div>
-      );
-    }
-
     if (!isAuthenticated) {
       return (
         <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-4 font-sans">
