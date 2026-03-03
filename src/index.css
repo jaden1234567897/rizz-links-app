@@ -1,1 +1,40 @@
 @import "tailwindcss";
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes lightning {
+  0% { background-color: #050510; }
+  10% { background-color: #ffffff; }
+  20% { background-color: #050510; }
+  30% { background-color: #ffffff; }
+  40% { background-color: #050510; }
+  100% { background-color: #050510; }
+}
+
+.lightning-flash {
+  animation: lightning 0.5s ease-in-out;
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}

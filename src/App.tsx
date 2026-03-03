@@ -38,7 +38,7 @@ export default function App() {
     day: '',
     bio: '',
     songUrl: '',
-    wordleWord: 'DATE?',
+    wordleWord: 'DATES',
     tarotFood: 'Sushi',
     quizFood: 'Tacos',
     quizQ1: 'What is the superior weekend activity?',
@@ -54,7 +54,28 @@ export default function App() {
     customBtn: 'Yes!',
     customNoBtn: 'No!',
     customBg: '#ffffff',
-    customText: '#000000'
+    customText: '#000000',
+    runIntro: 'I have something special to ask you.',
+    runQuestion: 'Will you go on a date with {from} for {plan}?',
+    scratchTitle: 'Department of Romance - Official Scratch-Off',
+    scratchDesc: 'WARNING: Unauthorized scratching is a federal offense unless you are {to}.',
+    packageTitle: 'Top Secret Cargo Intercepted',
+    packageDesc: 'Sign below to accept liability for an amazing date with {from}.',
+    wordleTitle: 'The New York Times has sold this Wordle to {from}',
+    wordleDesc: 'Guess the 5-letter word. Hint: It\'s what we should do this weekend.',
+    captchaTitle: 'Verify you are human',
+    captchaDesc: 'Select all images containing your future date',
+    spotifyTitle: 'New Release',
+    spotifyDesc: 'A new track by {from} featuring {to}',
+    tinderTitle: 'It\'s a Match!',
+    tinderDesc: 'You and {from} have liked each other.',
+    tinderAge: '24',
+    tinderDistance: '2 miles away',
+    tarotTitle: 'Your Daily Reading',
+    tarotDesc: 'The cards have spoken.',
+    tarotCurse: 'random',
+    quizTitle: 'Compatibility Quiz',
+    quizDesc: 'Let\'s see if we are a match.'
   });
   const [generatedLink, setGeneratedLink] = useState('');
   const [showLinkPopup, setShowLinkPopup] = useState(false);
@@ -118,7 +139,10 @@ export default function App() {
 
   // Template 4: CAPTCHA State
   const [captchaSelected, setCaptchaSelected] = useState<number[]>([]);
-  const [captchaGrid, setCaptchaGrid] = useState<{ type: 'img' | 'emoji'; content: string }[]>([]);
+  const [captchaGrid, setCaptchaGrid] = useState<{ type: 'img' | 'random'; content: string }[]>([]);
+  const [captchaShake, setCaptchaShake] = useState(false);
+  const [captchaModalText, setCaptchaModalText] = useState<string | null>(null);
+  const [captchaSkipPos, setCaptchaSkipPos] = useState<{ x: number; y: number } | null>(null);
 
   // Template 5: Spotify State
   const [spotifyPlaying, setSpotifyPlaying] = useState(false);
@@ -127,8 +151,30 @@ export default function App() {
   const [isGeneratingImg, setIsGeneratingImg] = useState(false);
 
   // Template 8: Tarot State
-  const [tarotStep, setTarotStep] = useState<'zodiac' | 'spinning' | 'reading'>('zodiac');
+  const [tarotStep, setTarotStep] = useState<'zodiac' | 'card_draw' | 'success'>('zodiac');
   const [tarotZodiac, setTarotZodiac] = useState('');
+  const [tarotFlipped, setTarotFlipped] = useState(false);
+  const [tarotLightning, setTarotLightning] = useState(false);
+  const [tarotModal, setTarotModal] = useState(false);
+  const [tarotCurseText, setTarotCurseText] = useState('');
+
+  useEffect(() => {
+    if (tmpl === 'tarot') {
+      const curses = {
+        charger: 'Refusing this cosmic alignment will result in 7 years of bad hair days and your phone charger only working at a very specific angle.',
+        coffee: 'Decline, and the universe will make sure your iced coffee always tastes watered down.',
+        traffic: 'Ignoring this prophecy means you will hit every red light in traffic for the rest of the year.'
+      };
+      
+      let selectedCurse = params.tarotCurse || 'random';
+      if (selectedCurse === 'random') {
+        const keys = Object.keys(curses) as (keyof typeof curses)[];
+        selectedCurse = keys[Math.floor(Math.random() * keys.length)];
+      }
+      
+      setTarotCurseText(curses[selectedCurse as keyof typeof curses] || curses.charger);
+    }
+  }, [tmpl, params.tarotCurse]);
 
   // Template 9: Quiz State
   const [quizStep, setQuizStep] = useState(0);
@@ -220,7 +266,7 @@ export default function App() {
           setWordleStatus('won');
           setTimeout(() => {
             confetti();
-            setShowWordleContinue(true);
+            setShowWordleWin(true);
           }, 1000);
         } else {
           setWordleCurrentRow(prev => prev + 1);
@@ -264,16 +310,16 @@ export default function App() {
 
   useEffect(() => {
     if (tmpl === 'captcha') {
-      const items: { type: 'img' | 'emoji'; content: string }[] = [
+      const items: { type: 'img' | 'random'; content: string }[] = [
         { type: 'img', content: params.img },
         { type: 'img', content: params.img },
         { type: 'img', content: params.img },
         { type: 'img', content: params.img },
-        { type: 'emoji', content: '🤡' },
-        { type: 'emoji', content: '🚩' },
-        { type: 'emoji', content: '🗑️' },
-        { type: 'emoji', content: '🐸' },
-        { type: 'emoji', content: '🗿' },
+        { type: 'random', content: 'https://picsum.photos/seed/1/200/200' },
+        { type: 'random', content: 'https://picsum.photos/seed/2/200/200' },
+        { type: 'random', content: 'https://picsum.photos/seed/3/200/200' },
+        { type: 'random', content: 'https://picsum.photos/seed/4/200/200' },
+        { type: 'random', content: 'https://picsum.photos/seed/5/200/200' },
       ];
       // Shuffle
       setCaptchaGrid(items.sort(() => Math.random() - 0.5));
@@ -290,18 +336,28 @@ export default function App() {
 
   const verifyCaptcha = () => {
     const selectedItems = captchaSelected.map(i => captchaGrid[i]);
-    const hasEmoji = selectedItems.some(item => item.type === 'emoji');
+    const hasRandom = selectedItems.some(item => item.type === 'random');
     const imageIndices = captchaGrid.map((item, i) => item.type === 'img' ? i : -1).filter(i => i !== -1);
     const allImagesSelected = imageIndices.every(i => captchaSelected.includes(i)) && captchaSelected.length === imageIndices.length;
 
-    if (hasEmoji) {
-      alert(`Error: You selected your ex or a red flag. Please select ${params.from} only.`);
+    if (hasRandom) {
+      setCaptchaShake(true);
+      setTimeout(() => setCaptchaShake(false), 500);
+      setCaptchaModalText(`Are you blind? That is not ${params.from}. Try again.`);
     } else if (!allImagesSelected) {
-      alert(`Error: Stop playing hard to get. Select all 4 of ${params.from}'s photos.`);
+      setCaptchaShake(true);
+      setTimeout(() => setCaptchaShake(false), 500);
+      setCaptchaModalText(`Stop playing hard to get. Select ALL of ${params.from}'s photos.`);
     } else {
       confetti();
       setSuccess({ title: "Humanity Verified 🤖❤️", msg: `Date confirmed for ${params.time}.` });
     }
+  };
+
+  const moveCaptchaSkip = () => {
+    const x = Math.random() * (window.innerWidth - 100);
+    const y = Math.random() * (window.innerHeight - 50);
+    setCaptchaSkipPos({ x, y });
   };
 
   useEffect(() => {
@@ -407,9 +463,9 @@ export default function App() {
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   const generateLink = async () => {
-    const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText } = dashboardData;
+    const { type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, tarotCurse, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText, runIntro, runQuestion, scratchTitle, scratchDesc, packageTitle, packageDesc, wordleTitle, wordleDesc, captchaTitle, captchaDesc, spotifyTitle, spotifyDesc, tinderTitle, tinderDesc, tinderAge, tinderDistance, tarotTitle, tarotDesc, quizTitle, quizDesc } = dashboardData;
     
-    const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText };
+    const payload = { tmpl: type, to, from, plan, prize, time, img, crushImg, location, day, bio, songUrl, wordleWord, tarotFood, tarotCurse, quizFood, quizQ1, quizQ2, quizQ3, quizA1_1, quizA1_2, quizA2_1, quizA2_2, quizA3_1, quizA3_2, customMsg, customBtn, customNoBtn, customBg, customText, runIntro, runQuestion, scratchTitle, scratchDesc, packageTitle, packageDesc, wordleTitle, wordleDesc, captchaTitle, captchaDesc, spotifyTitle, spotifyDesc, tinderTitle, tinderDesc, tinderAge, tinderDistance, tarotTitle, tarotDesc, quizTitle, quizDesc };
     
     // Check payload size (Vercel limit is 4.5MB)
     const size = new Blob([JSON.stringify(payload)]).size;
@@ -452,9 +508,9 @@ export default function App() {
           const longUrl = `${window.location.origin}/?s=${data.id}`;
           
           try {
-            const tinyRes = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-            if (tinyRes.ok) {
-              const shortUrl = await tinyRes.text();
+            const shortRes = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`);
+            if (shortRes.ok) {
+              const shortUrl = await shortRes.text();
               setGeneratedLink(shortUrl);
             } else {
               setGeneratedLink(longUrl);
@@ -1106,6 +1162,19 @@ export default function App() {
               {dashboardData.type === 'tarot' && (
                 <div className="space-y-5">
                   <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Select the Cosmic Curse</label>
+                    <select 
+                      className="w-full bg-[#F5F5F7] border-none rounded-2xl p-4 text-[#1D1D1F] font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                      value={dashboardData.tarotCurse}
+                      onChange={(e) => setDashboardData({ ...dashboardData, tarotCurse: e.target.value })}
+                    >
+                      <option value="charger">The Phone Charger Curse</option>
+                      <option value="coffee">The Iced Coffee Curse</option>
+                      <option value="traffic">The Traffic Light Curse</option>
+                      <option value="random">Surprise Me (Random)</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Food Type</label>
                     <input 
                       type="text" 
@@ -1123,6 +1192,31 @@ export default function App() {
                       placeholder="e.g. Saturday"
                       value={dashboardData.day}
                       onChange={(e) => setDashboardData({ ...dashboardData, day: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {dashboardData.type === 'tinder' && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Age</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-[#F5F5F7] border-none rounded-2xl p-4 text-[#1D1D1F] font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. 24"
+                      value={dashboardData.tinderAge}
+                      onChange={(e) => setDashboardData({ ...dashboardData, tinderAge: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Distance</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-[#F5F5F7] border-none rounded-2xl p-4 text-[#1D1D1F] font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. 2 miles away"
+                      value={dashboardData.tinderDistance}
+                      onChange={(e) => setDashboardData({ ...dashboardData, tinderDistance: e.target.value })}
                     />
                   </div>
                 </div>
@@ -1371,7 +1465,7 @@ export default function App() {
               Hey {params.to} ...
             </h2>
             <p className="text-slate-600 text-lg font-medium mb-10">
-              I have something special to ask you.
+              {params.runIntro || 'I have something special to ask you.'}
             </p>
             <button 
               onClick={() => setRunStep(1)}
@@ -1389,7 +1483,11 @@ export default function App() {
         <div className="h-screen w-screen bg-[#FFF0F5] flex flex-col items-center justify-center p-8 relative overflow-hidden font-sans">
           <div className="bg-white p-10 rounded-[2.5rem] shadow-xl max-w-sm w-full text-center z-10 border border-pink-100 animate-in slide-in-from-right duration-500">
             <h2 className="text-2xl font-bold text-slate-800 mb-10 leading-tight">
-              Will you go on a date with <span className="text-[#FF1493] font-black">{params.from}</span> for <span className="text-[#FF1493] font-black">{params.plan}</span>?
+              {params.runQuestion ? (
+                <span dangerouslySetInnerHTML={{__html: params.runQuestion.replace('{from}', `<span class="text-[#FF1493] font-black">${params.from}</span>`).replace('{plan}', `<span class="text-[#FF1493] font-black">${params.plan}</span>`)}} />
+              ) : (
+                <>Will you go on a date with <span className="text-[#FF1493] font-black">{params.from}</span> for <span className="text-[#FF1493] font-black">{params.plan}</span>?</>
+              )}
             </h2>
             <div className="flex gap-4 justify-center relative h-16">
               <button 
@@ -1436,8 +1534,8 @@ export default function App() {
     return (
       <div className="h-screen w-screen bg-[#F5F5F7] flex flex-col items-center justify-center p-8 font-sans overflow-hidden">
         <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center border border-slate-100 animate-in zoom-in duration-500 relative">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">You have a surprise!</h2>
-          <p className="text-slate-500 mb-8 text-sm">Scratch the card below to reveal your prize from <span className="font-bold text-blue-500">{params.from}</span></p>
+          <h2 className="text-2xl font-bold text-slate-800 mb-6">{params.scratchTitle || 'JACKPOT! 🎰'}</h2>
+          <p className="text-slate-500 mb-8 text-sm">{params.scratchDesc ? params.scratchDesc.replace('{to}', params.to) : `Scratch the card below to reveal your exclusive, all-expenses-paid (maybe) prize from ${params.from}`}</p>
           
           <div className="relative w-full aspect-video bg-blue-50 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-blue-100">
             <div className="text-center p-4">
@@ -1501,17 +1599,11 @@ export default function App() {
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-8">
           <div className="w-full max-w-[320px] aspect-square bg-[#282828] rounded-lg shadow-2xl mb-8 overflow-hidden animate-in fade-in zoom-in duration-700 relative">
-            {isGeneratingImg ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-10">
-                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest">AI Generating Album Art...</p>
-              </div>
-            ) : null}
             <img src={generatedCoupleImg || params.img} className="w-full h-full object-cover" alt="Album Art" />
           </div>
           <div className="w-full max-w-[320px]">
-            <h2 className="text-2xl font-bold mb-1 truncate">Date Night?</h2>
-            <p className="text-slate-400 font-medium mb-8 truncate">Featuring {params.from} & {params.to}</p>
+            <h2 className="text-2xl font-bold mb-1 truncate">{params.spotifyTitle || 'New Release'}</h2>
+            <p className="text-slate-400 font-medium mb-8 truncate">{params.spotifyDesc ? params.spotifyDesc.replace('{from}', params.from).replace('{to}', params.to) : `A new track by ${params.from} featuring ${params.to}`}</p>
             
             <div className="w-full h-1 bg-white/10 rounded-full mb-2 relative overflow-hidden">
               <div 
@@ -1571,7 +1663,7 @@ export default function App() {
       <div className="h-screen w-screen bg-white flex flex-col items-center font-sans">
         <header className="w-full border-b border-slate-200 p-4 flex items-center justify-between mb-12">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-          <h1 className="text-3xl font-black tracking-tighter">Wordle</h1>
+          <h1 className="text-3xl font-black tracking-tighter">{params.wordleTitle || 'Wordle'}</h1>
           <div className="flex gap-4">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
@@ -1604,7 +1696,7 @@ export default function App() {
         </div>
         
         <div className="max-w-md w-full px-4 text-center text-slate-500 font-medium mb-8">
-          {wordleStatus === 'playing' ? `Type anything to guess the ${TARGET_WORD.length}-letter word...` : "Splendid!"}
+          {wordleStatus === 'playing' ? (params.wordleDesc ? params.wordleDesc.replace('{from}', params.from) : `Type anything to guess the ${TARGET_WORD.length}-letter word...`) : "Splendid!"}
         </div>
 
         <div className="max-w-md w-full px-2">
@@ -1629,36 +1721,15 @@ export default function App() {
           ))}
         </div>
 
-        {showWordleContinue && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50 animate-in fade-in duration-300">
-            <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in duration-300">
-              <div className="text-6xl mb-4">✨</div>
-              <h2 className="text-3xl font-black mb-2 italic">Amazing!</h2>
-              <p className="text-slate-600 font-medium mb-8">
-                You've solved the puzzle!
-              </p>
-              <button 
-                onClick={() => {
-                  setShowWordleContinue(false);
-                  setShowWordleWin(true);
-                }}
-                className="w-full bg-slate-900 text-white font-black py-4 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all"
-              >
-                PRESS CONTINUE
-              </button>
-            </div>
-          </div>
-        )}
-
         {showWordleWin && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50 animate-in fade-in duration-300">
             <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in duration-300">
               <div className="text-6xl mb-4">🏆</div>
               <h2 className="text-3xl font-black mb-2 italic">Splendid!</h2>
               <p className="text-slate-600 font-medium mb-8">
-                You guessed it! The word was <span className="font-bold text-emerald-600">DATE?</span>
+                You guessed it! The word was <span className="font-bold text-emerald-600">{TARGET_WORD}</span>. 
                 <br /><br />
-                How about a date on <span className="font-bold text-emerald-600">{params.day}</span>?
+                You must be a genius (or a cheater). Either way, how about a date on <span className="font-bold text-emerald-600">{params.day}</span>?
               </p>
               <button 
                 onClick={() => setSuccess({ title: "It's a Date!", msg: `Date with me on ${params.day}!` })}
@@ -1713,107 +1784,119 @@ export default function App() {
   if (tmpl === 'tinder') {
     return (
       <div className="h-screen w-screen bg-[#f5f7fa] flex flex-col items-center justify-center p-4 font-sans overflow-hidden">
-        <div className="w-full max-w-[380px] h-[600px] relative">
+        <div className="w-full max-w-[380px] h-[650px] relative flex flex-col">
           {tinderStatus === 'swiping' ? (
-            <div className="w-full h-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 relative">
-              <img src={params.img} className="w-full h-3/4 object-cover" alt="Profile" />
-              <div className="p-6 bg-gradient-to-t from-white via-white to-transparent">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-2xl font-bold text-slate-900">{params.from}</h2>
-                  <span className="text-xl text-blue-500">✓</span>
+            <>
+              {/* Card Area */}
+              <div className="flex-1 relative mb-6">
+                {/* Background Card */}
+                <div className="absolute inset-0 bg-white rounded-[2rem] shadow-md border border-slate-200 flex items-center justify-center">
+                  <p className="text-slate-400 font-medium">No more profiles</p>
                 </div>
-                <p className="text-slate-500 text-sm font-medium mb-4">📍 1 mile away</p>
-                <p className="text-slate-600 text-sm leading-relaxed">{params.bio}</p>
+
+                {/* Foreground Draggable Card */}
+                <div 
+                  id="tinder-card"
+                  className="absolute inset-0 bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 z-20 transition-transform duration-300 cursor-grab active:cursor-grabbing"
+                  onMouseDown={(e) => {
+                    const startX = e.clientX;
+                    const onMouseMove = (moveE: MouseEvent) => {
+                      const diff = moveE.clientX - startX;
+                      const card = document.getElementById('tinder-card');
+                      if (card) {
+                        if (diff < 0) {
+                          card.style.transform = `translateX(${diff * 0.2}px) rotate(${diff * 0.05}deg)`;
+                        } else {
+                          card.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
+                          if (diff > 150) {
+                            setTinderStatus('match');
+                            confetti();
+                            document.removeEventListener('mousemove', onMouseMove);
+                          }
+                        }
+                      }
+                    };
+                    const onMouseUp = () => {
+                      const card = document.getElementById('tinder-card');
+                      if (card && tinderStatus === 'swiping') {
+                        card.style.transform = 'translateX(0) rotate(0)';
+                      }
+                      document.removeEventListener('mousemove', onMouseMove);
+                      document.removeEventListener('mouseup', onMouseUp);
+                    };
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                  }}
+                  onTouchStart={(e) => {
+                    const startX = e.touches[0].clientX;
+                    const onTouchMove = (moveE: TouchEvent) => {
+                      const diff = moveE.touches[0].clientX - startX;
+                      const card = document.getElementById('tinder-card');
+                      if (card) {
+                        if (diff < 0) {
+                          card.style.transform = `translateX(${diff * 0.2}px) rotate(${diff * 0.05}deg)`;
+                        } else {
+                          card.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
+                          if (diff > 150) {
+                            setTinderStatus('match');
+                            confetti();
+                            document.removeEventListener('touchmove', onTouchMove);
+                          }
+                        }
+                      }
+                    };
+                    const onTouchEnd = () => {
+                      const card = document.getElementById('tinder-card');
+                      if (card && tinderStatus === 'swiping') {
+                        card.style.transform = 'translateX(0) rotate(0)';
+                      }
+                      document.removeEventListener('touchmove', onTouchMove);
+                      document.removeEventListener('touchend', onTouchEnd);
+                    };
+                    document.addEventListener('touchmove', onTouchMove);
+                    document.addEventListener('touchend', onTouchEnd);
+                  }}
+                >
+                  <img src={params.img} className="w-full h-full object-cover" alt="Profile" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent text-white pt-20">
+                    <div className="flex items-end gap-2 mb-1">
+                      <h2 className="text-3xl font-bold tracking-tight">{params.from}</h2>
+                      <span className="text-2xl font-normal opacity-90">{params.tinderAge || '24'}</span>
+                      <span className="text-xl text-blue-400 ml-1">✓</span>
+                    </div>
+                    <p className="text-white/80 text-sm font-medium mb-2 flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                      {params.tinderDistance || '1 mile away'}
+                    </p>
+                    <p className="text-white/90 text-sm leading-relaxed line-clamp-2">{params.bio}</p>
+                  </div>
+                </div>
               </div>
-              
-              <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4 px-6 z-30">
+
+              {/* Buttons Area */}
+              <div className="flex justify-center gap-6 h-20 items-center relative z-30">
                 <button 
                   onMouseEnter={moveNoTinder}
                   onTouchStart={(e) => { e.preventDefault(); moveNoTinder(); }}
                   style={noPosTinder ? { position: 'fixed', left: noPosTinder.x, top: noPosTinder.y, zIndex: 100 } : {}}
-                  className="w-14 h-14 rounded-full border-4 border-red-100 flex items-center justify-center bg-white text-red-500 hover:scale-110 transition-all shadow-lg"
+                  className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#fd5068] hover:scale-110 transition-all shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-100"
                 >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
                 <button 
                   onClick={() => {
                     confetti();
                     setTinderStatus('match');
                   }}
-                  className="w-14 h-14 rounded-full border-4 border-emerald-100 flex items-center justify-center bg-white text-emerald-500 hover:scale-110 transition-transform shadow-lg"
+                  className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[#1ce592] hover:scale-110 transition-transform shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-slate-100"
                 >
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
                 </button>
               </div>
-              
-              {/* The actual draggable card overlay */}
-              <div 
-                id="tinder-card"
-                className="absolute inset-0 z-20 transition-transform duration-300 cursor-grab active:cursor-grabbing"
-                onMouseDown={(e) => {
-                  const startX = e.clientX;
-                  const onMouseMove = (moveE: MouseEvent) => {
-                    const diff = moveE.clientX - startX;
-                    const card = document.getElementById('tinder-card');
-                    if (card) {
-                      if (diff < 0) {
-                        // Resistance for left swipe
-                        card.style.transform = `translateX(${diff * 0.2}px) rotate(${diff * 0.05}deg)`;
-                      } else {
-                        card.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
-                        if (diff > 150) {
-                          setTinderStatus('match');
-                          confetti();
-                          document.removeEventListener('mousemove', onMouseMove);
-                        }
-                      }
-                    }
-                  };
-                  const onMouseUp = () => {
-                    const card = document.getElementById('tinder-card');
-                    if (card && tinderStatus === 'swiping') {
-                      card.style.transform = 'translateX(0) rotate(0)';
-                    }
-                    document.removeEventListener('mousemove', onMouseMove);
-                    document.removeEventListener('mouseup', onMouseUp);
-                  };
-                  document.addEventListener('mousemove', onMouseMove);
-                  document.addEventListener('mouseup', onMouseUp);
-                }}
-                onTouchStart={(e) => {
-                  const startX = e.touches[0].clientX;
-                  const onTouchMove = (moveE: TouchEvent) => {
-                    const diff = moveE.touches[0].clientX - startX;
-                    const card = document.getElementById('tinder-card');
-                    if (card) {
-                      if (diff < 0) {
-                        card.style.transform = `translateX(${diff * 0.2}px) rotate(${diff * 0.05}deg)`;
-                      } else {
-                        card.style.transform = `translateX(${diff}px) rotate(${diff * 0.05}deg)`;
-                        if (diff > 150) {
-                          setTinderStatus('match');
-                          confetti();
-                          document.removeEventListener('touchmove', onTouchMove);
-                        }
-                      }
-                    }
-                  };
-                  const onTouchEnd = () => {
-                    const card = document.getElementById('tinder-card');
-                    if (card && tinderStatus === 'swiping') {
-                      card.style.transform = 'translateX(0) rotate(0)';
-                    }
-                    document.removeEventListener('touchmove', onTouchMove);
-                    document.removeEventListener('touchend', onTouchEnd);
-                  };
-                  document.addEventListener('touchmove', onTouchMove);
-                  document.addEventListener('touchend', onTouchEnd);
-                }}
-              ></div>
-            </div>
+            </>
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-pink-500 to-orange-400 rounded-3xl shadow-2xl flex flex-col items-center justify-center p-8 text-white text-center animate-in zoom-in duration-500">
-              <h1 className="text-5xl font-black italic mb-8 drop-shadow-lg">It's a Match!</h1>
+              <h1 className="text-5xl font-black italic mb-8 drop-shadow-lg">{params.tinderTitle || "It's a Match!"}</h1>
               <div className="flex gap-4 mb-12">
                 <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden shadow-xl rotate-[-10deg]">
                   <img src={params.img} className="w-full h-full object-cover" alt="You" />
@@ -1829,7 +1912,7 @@ export default function App() {
                 </div>
               </div>
               <p className="text-xl font-bold mb-8 leading-relaxed">
-                You and {params.from} liked each other. <br/>
+                {params.tinderDesc ? params.tinderDesc.replace('{from}', params.from) : `You and ${params.from} liked each other.`} <br/>
                 <span className="opacity-80 font-medium text-base">Go on a date?</span>
               </p>
               <button 
@@ -1849,7 +1932,7 @@ export default function App() {
     return (
       <div className="h-screen w-screen bg-slate-100 flex flex-col text-slate-900">
         <div className="bg-[#003399] text-white p-4 flex items-center justify-between shadow-lg">
-          <div className="font-bold text-xl tracking-tight italic">FedEx Express</div>
+          <div className="font-bold text-xl tracking-tight italic">{params.packageTitle || 'FedEx Express'}</div>
           <div className="text-xs opacity-75 font-mono">ID: #8821934421</div>
         </div>
         <div className="p-6 flex-1 overflow-y-auto">
@@ -1880,7 +1963,7 @@ export default function App() {
 
           {!isDelivered && (
             <>
-              <div className="text-sm text-slate-500 mb-2">A signature is required to release this package.</div>
+              <div className="text-sm text-slate-500 mb-2">{params.packageDesc ? params.packageDesc.replace('{from}', params.from) : 'A signature is required to release this package.'}</div>
               <div className="bg-white border-2 border-dashed border-slate-300 rounded-xl relative overflow-hidden">
                 <canvas 
                   ref={sigCanvasRef}
@@ -1909,7 +1992,7 @@ export default function App() {
 
   if (tmpl === 'tarot') {
     return (
-      <div className="h-screen w-screen bg-[#050510] text-white flex flex-col items-center justify-center p-8 font-serif relative overflow-hidden">
+      <div className={`h-screen w-screen bg-[#050510] text-white flex flex-col items-center justify-center p-8 font-serif relative overflow-hidden ${tarotLightning ? 'lightning-flash shake' : ''}`}>
         {/* Starry Background */}
         <div className="absolute inset-0 pointer-events-none">
           {Array.from({ length: 50 }).map((_, i) => (
@@ -1926,6 +2009,37 @@ export default function App() {
             />
           ))}
         </div>
+
+        {/* Defy the Universe Modal */}
+        <AnimatePresence>
+          {tarotModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#1a1a2e] p-8 rounded-2xl max-w-sm w-full text-center border border-purple-500/30 shadow-[0_0_50px_rgba(168,85,247,0.2)]"
+              >
+                <div className="text-5xl mb-4">🪐</div>
+                <h3 className="text-white text-xl font-bold mb-4 tracking-wider uppercase text-red-400">Warning</h3>
+                <p className="text-slate-300 mb-8 leading-relaxed">
+                  Mercury is in retrograde. The cosmos have temporarily disabled your ability to say no to <span className="text-purple-400 font-bold">{params.from}</span>. Try again.
+                </p>
+                <button
+                  onClick={() => setTarotModal(false)}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-colors tracking-widest uppercase text-sm"
+                >
+                  Okay
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence mode="wait">
           {tarotStep === 'zodiac' && (
@@ -1956,8 +2070,7 @@ export default function App() {
                     key={item.name}
                     onClick={() => {
                       setTarotZodiac(item.sign);
-                      setTarotStep('spinning');
-                      setTimeout(() => setTarotStep('reading'), 3000);
+                      setTarotStep('card_draw');
                     }}
                     className="flex flex-col items-center justify-center p-2 rounded-xl border border-white/20 hover:bg-white/10 transition-colors"
                   >
@@ -1969,52 +2082,86 @@ export default function App() {
             </motion.div>
           )}
 
-          {tarotStep === 'spinning' && (
+          {tarotStep === 'card_draw' && (
             <motion.div
-              key="spinning"
+              key="card_draw"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="z-10 flex flex-col items-center"
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="z-10 flex flex-col items-center w-full max-w-sm perspective-1000"
             >
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="w-32 h-32 border-t-2 border-b-2 border-purple-500 rounded-full mb-8"
-              />
-              <p className="text-xl tracking-widest uppercase animate-pulse">Consulting the Stars...</p>
+              <h2 className="text-xl font-light mb-12 tracking-widest uppercase text-center opacity-80">
+                The Cosmos have calculated your chart. Tap to draw your card.
+              </h2>
+              
+              <div 
+                className={`relative w-64 h-96 transition-transform duration-1000 transform-style-3d cursor-pointer ${tarotFlipped ? 'rotate-y-180' : ''}`}
+                onClick={() => !tarotFlipped && setTarotFlipped(true)}
+              >
+                {/* Card Back */}
+                <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-br from-indigo-900 to-purple-900 rounded-2xl border-2 border-purple-500/50 shadow-[0_0_30px_rgba(168,85,247,0.4)] flex flex-col items-center justify-center p-6">
+                  <div className="w-full h-full border border-purple-400/30 rounded-xl flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+                    <div className="text-6xl animate-pulse">✨</div>
+                  </div>
+                </div>
+
+                {/* Card Front */}
+                <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl border-2 border-pink-500/50 shadow-[0_0_50px_rgba(236,72,153,0.3)] flex flex-col items-center justify-center p-6 text-center">
+                  <div className="text-5xl mb-4">🔮</div>
+                  <h3 className="text-lg font-bold text-pink-400 mb-4 uppercase tracking-widest border-b border-pink-500/30 pb-2 w-full">The Lovers</h3>
+                  <p className="text-sm leading-relaxed text-slate-200">
+                    Your aura is severely misaligned. The stars dictate that the only way to cleanse your chakras is to go get <span className="text-pink-400 font-bold">{params.tarotFood || params.plan}</span> with <span className="text-pink-400 font-bold">{params.from}</span> on <span className="text-pink-400 font-bold">{params.day || params.time}</span>. {tarotCurseText}
+                  </p>
+                </div>
+              </div>
+
+              {/* Buttons (appear after flip) */}
+              <AnimatePresence>
+                {tarotFlipped && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1 }}
+                    className="flex flex-col gap-4 mt-12 w-full"
+                  >
+                    <button
+                      onClick={() => {
+                        confetti();
+                        setTarotStep('success');
+                      }}
+                      className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold rounded-xl shadow-lg shadow-pink-500/20 hover:scale-[1.02] transition-transform tracking-wider"
+                    >
+                      ✨ Accept Cosmic Fate
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTarotLightning(true);
+                        setTimeout(() => setTarotLightning(false), 500);
+                        setTarotModal(true);
+                      }}
+                      className="w-full py-4 bg-transparent border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-white/5 transition-colors tracking-wider"
+                    >
+                      🌩️ Defy the Universe
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
-          {tarotStep === 'reading' && (
+          {tarotStep === 'success' && (
             <motion.div
-              key="reading"
-              initial={{ opacity: 0, scale: 0.5 }}
+              key="success"
+              initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               className="z-10 flex flex-col items-center text-center max-w-sm"
             >
-              <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 4, repeat: Infinity }}
-                className="w-48 h-80 bg-gradient-to-br from-purple-900 to-indigo-900 rounded-xl border-2 border-pink-500/50 shadow-[0_0_50px_rgba(236,72,153,0.3)] flex flex-col items-center justify-center p-6 mb-8"
-              >
-                <div className="text-6xl mb-4">🔮</div>
-                <h3 className="text-xl font-bold text-pink-500 mb-2 uppercase tracking-tighter">The Lovers</h3>
-                <div className="w-full h-px bg-pink-500/30 mb-4" />
-                <p className="text-sm italic text-slate-300">"A connection written in the constellations."</p>
-              </motion.div>
-              
-              <p className="text-lg leading-relaxed mb-8">
-                The cosmos have spoken. Venus is entering your house of romance. 
-                If you do not get <span className="text-pink-500 font-bold">{params.tarotFood}</span> with <span className="text-pink-500 font-bold">{params.from}</span> on <span className="text-pink-500 font-bold">{params.day}</span>, you will have 7 years of bad hair days.
+              <div className="text-8xl mb-6">🔮</div>
+              <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400 mb-4 tracking-wider">Destiny Fulfilled</h2>
+              <p className="text-xl text-slate-300 leading-relaxed">
+                Screenshot this and send it to <span className="text-pink-400 font-bold">{params.from}</span> so he knows the stars aligned!
               </p>
-
-              <button
-                onClick={() => setSuccess({ title: "Destiny Awaits!", msg: `The stars have aligned for ${params.day}!` })}
-                className="px-8 py-3 bg-pink-500 text-white font-bold rounded-full hover:scale-105 transition-transform shadow-lg shadow-pink-500/20"
-              >
-                ACCEPT YOUR FATE
-              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2051,8 +2198,8 @@ export default function App() {
       <div className="h-screen w-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6 font-sans">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
           <div className="bg-pink-500 p-6 text-white text-center">
-            <h2 className="text-2xl font-black italic uppercase tracking-tighter">Compatibility Quiz</h2>
-            <p className="text-sm font-bold opacity-80">Are you a match with {params.from}?</p>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter">{params.quizTitle || 'Compatibility Quiz'}</h2>
+            <p className="text-sm font-bold opacity-80">{params.quizDesc ? params.quizDesc.replace('{from}', params.from) : `Are you a match with ${params.from}?`}</p>
           </div>
 
           <div className="p-8">
@@ -2136,13 +2283,46 @@ export default function App() {
 
   if (tmpl === 'captcha') {
     return (
-      <div className="min-h-screen w-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-[400px] border border-slate-200 shadow-lg">
+      <div className="min-h-screen w-screen bg-white flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Meme Error Modal */}
+        <AnimatePresence>
+          {captchaModalText && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-[#1a1a1a] p-6 rounded-2xl max-w-sm w-full text-center border border-white/10 shadow-2xl"
+              >
+                <img 
+                  src="https://iili.io/qBOrk2s.png" 
+                  alt="Meme" 
+                  className="w-full rounded-lg mb-4 object-cover"
+                />
+                <h3 className="text-white text-xl font-bold mb-2">Bro is shooting bricks 🧱</h3>
+                <p className="text-slate-300 mb-6">{captchaModalText}</p>
+                <button
+                  onClick={() => setCaptchaModalText(null)}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-colors"
+                >
+                  My Bad
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className={`w-full max-w-[400px] border border-slate-200 shadow-lg ${captchaShake ? 'shake' : ''}`}>
           {/* Header Box */}
           <div className="bg-[#4a90e2] p-6 text-white">
-            <div className="text-sm opacity-90 mb-1">Select all squares with</div>
+            <div className="text-sm opacity-90 mb-1">{params.captchaTitle || 'Select all squares with'}</div>
             <div className="text-2xl font-black leading-tight mb-2">
-              A 10/10 taking you to {params.plan}
+              {params.captchaDesc ? params.captchaDesc.replace('{plan}', params.plan) : `A 10/10 taking you to ${params.plan}`}
             </div>
             <div className="text-[10px] opacity-80">
               If there are none, click skip (just kidding, you can't skip).
@@ -2160,9 +2340,7 @@ export default function App() {
                 {item.type === 'img' ? (
                   <img src={item.content} className="w-full h-full object-cover" alt="captcha" />
                 ) : (
-                  <div className="w-full h-full bg-slate-100 flex items-center justify-center text-4xl">
-                    {item.content}
-                  </div>
+                  <img src={item.content} className="w-full h-full object-cover" alt="captcha random" />
                 )}
                 {captchaSelected.includes(idx) && (
                   <div className="absolute inset-0 border-4 border-[#4a90e2] flex items-start justify-start p-1">
@@ -2176,17 +2354,27 @@ export default function App() {
           </div>
 
           {/* Footer */}
-          <div className="p-4 flex justify-between items-center border-t border-slate-100">
+          <div className="p-4 flex justify-between items-center border-t border-slate-100 relative">
             <div className="flex gap-4 opacity-40">
               <div className="w-5 h-5 border-2 border-slate-400 rounded-sm" />
               <div className="w-5 h-5 border-2 border-slate-400 rounded-full" />
             </div>
-            <button 
-              onClick={verifyCaptcha}
-              className="bg-[#4a90e2] hover:bg-[#357abd] text-white font-bold py-2 px-6 rounded-sm text-sm transition-colors"
-            >
-              VERIFY
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onMouseEnter={moveCaptchaSkip}
+                onClick={moveCaptchaSkip}
+                style={captchaSkipPos ? { position: 'fixed', left: captchaSkipPos.x, top: captchaSkipPos.y, zIndex: 50 } : {}}
+                className="text-slate-500 font-bold py-2 px-4 rounded-sm text-sm hover:bg-slate-100 transition-colors"
+              >
+                SKIP
+              </button>
+              <button 
+                onClick={verifyCaptcha}
+                className="bg-[#4a90e2] hover:bg-[#357abd] text-white font-bold py-2 px-6 rounded-sm text-sm transition-colors"
+              >
+                VERIFY
+              </button>
+            </div>
           </div>
         </div>
       </div>
